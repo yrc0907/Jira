@@ -31,7 +31,6 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <NextAuthProvider>
-          <Navigation />
           <main>{children}</main>
         </NextAuthProvider>
       </body>
