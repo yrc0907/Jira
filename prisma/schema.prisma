@@ -21,7 +21,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
-  workspaces    Workspace[]
+  workspaces    Workspace[] // User can be assigned tasks
+  workspaceMemberships WorkspaceMember[]
+  tasks         Task[]    // User can be assigned tasks
 }
 
 model Session {
@@ -40,4 +42,44 @@ model Workspace {
   updatedAt DateTime @updatedAt
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects  Project[]
+  members   WorkspaceMember[]
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks       Task[]    // Project can have multiple tasks
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  name        String
+  description String?   // Optional task description
+  status      String    @default("Backlog") // e.g., "Backlog", "Todo", "In Review", "In Progress", "Done"
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relationships
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  assigneeId  String?   // Optional: task can be unassigned
+  assignee    User?     @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("member")
+
+  @@unique([workspaceId, userId])
 }

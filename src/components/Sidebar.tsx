@@ -8,6 +8,7 @@ import {
   Users,
   Plus,
   ChevronsUpDown,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -20,10 +21,22 @@ interface Workspace {
   iconUrl: string | null;
 }
 
+interface Project {
+  id: string;
+  name: string;
+}
+
 export default function Sidebar() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const pathname = usePathname();
+
+  // Get the current active workspace ID from the URL
+  const activeWorkspaceId = pathname.includes('/workspaces/')
+    ? pathname.split('/workspaces/')[1]?.split('/')[0]
+    : null;
 
   useEffect(() => {
     const fetchWorkspaces = async () => {
@@ -43,10 +56,33 @@ export default function Sidebar() {
     fetchWorkspaces();
   }, []);
 
-  // Get the current active workspace ID from the URL
-  const activeWorkspaceId = pathname.includes('/workspaces/')
-    ? pathname.split('/workspaces/')[1]?.split('/')[0]
-    : null;
+  // Fetch projects when the active workspace changes
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (!activeWorkspaceId) {
+        setProjects([]);
+        return;
+      }
+
+      setIsLoadingProjects(true);
+      try {
+        const response = await fetch(`/api/workspaces/${activeWorkspaceId}/projects`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjects(data);
+        } else {
+          setProjects([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch projects:", error);
+        setProjects([]);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    fetchProjects();
+  }, [activeWorkspaceId]);
 
   return (
     <aside className="w-72 h-full bg-gray-50 border-r flex flex-col p-4">
@@ -83,28 +119,30 @@ export default function Sidebar() {
                   variant={isActive ? "secondary" : "ghost"}
                   className="w-full justify-start"
                 >
-                  <Link
-                    href={`/dashboard/workspaces/${ws.id}`}
-                    className="flex items-center space-x-3"
-                  >
-                    {ws.iconUrl ? (
-                      <Image
-                        src={ws.iconUrl}
-                        alt={ws.name}
-                        width={24}
-                        height={24}
-                        className="rounded-md object-cover"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 rounded-md bg-gray-200 flex items-center justify-center">
-                        <span className="font-semibold text-gray-500 text-xs">
-                          {ws.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                    <span className="font-medium text-sm truncate flex-1">
-                      {ws.name}
-                    </span>
+                  <div className="flex items-center space-x-3 w-full">
+                    <Link
+                      href={`/dashboard/workspaces/${ws.id}`}
+                      className="flex items-center space-x-3 flex-grow"
+                    >
+                      {ws.iconUrl ? (
+                        <Image
+                          src={ws.iconUrl}
+                          alt={ws.name}
+                          width={24}
+                          height={24}
+                          className="rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-md bg-gray-200 flex items-center justify-center">
+                          <span className="font-semibold text-gray-500 text-xs">
+                            {ws.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <span className="font-medium text-sm truncate flex-1">
+                        {ws.name}
+                      </span>
+                    </Link>
                     {isActive ? (
                       <Link
                         href={`/dashboard/workspaces/${ws.id}/settings`}
@@ -116,13 +154,58 @@ export default function Sidebar() {
                     ) : (
                       <ChevronsUpDown className="h-4 w-4 text-gray-400" />
                     )}
-                  </Link>
+                  </div>
                 </Button>
               </div>
             );
           })
         )}
       </div>
+
+      {activeWorkspaceId && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Projects
+            </h2>
+            <Link href={`/dashboard/workspaces/${activeWorkspaceId}`}>
+              <Button variant="ghost" size="icon" aria-label="View all projects">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+
+          <div className="space-y-1">
+            {isLoadingProjects ? (
+              <div className="text-sm text-gray-500 p-2">Loading projects...</div>
+            ) : projects.length === 0 ? (
+              <div className="text-sm text-gray-500 p-2">No projects found</div>
+            ) : (
+              projects.map((project) => {
+                const isProjectActive = pathname.includes(`/projects/${project.id}`);
+                return (
+                  <Button
+                    key={project.id}
+                    asChild
+                    variant={isProjectActive ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                  >
+                    <Link
+                      href={`/dashboard/workspaces/${activeWorkspaceId}/projects/${project.id}`}
+                      className="flex items-center space-x-3"
+                    >
+                      <Layers className="h-4 w-4" />
+                      <span className="font-medium text-sm truncate">
+                        {project.name}
+                      </span>
+                    </Link>
+                  </Button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       <nav className="flex flex-col space-y-1">
         <Button asChild variant={pathname === "/dashboard" ? "secondary" : "ghost"} className="w-full justify-start">
