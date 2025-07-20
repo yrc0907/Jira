@@ -3,14 +3,23 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
+import { Settings, Plus } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface Workspace {
   id: string;
   name: string;
   iconUrl: string | null;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function WorkspacePage() {
@@ -19,7 +28,11 @@ export default function WorkspacePage() {
   const workspaceId = params.workspaceId as string;
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     const fetchWorkspace = async () => {
@@ -44,10 +57,55 @@ export default function WorkspacePage() {
       }
     };
 
+    const fetchProjects = async () => {
+      try {
+        const response = await fetch(`/api/workspaces/${workspaceId}/projects`);
+        if (response.ok) {
+          const data = await response.json();
+          setProjects(data);
+        }
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      }
+    };
+
     if (workspaceId) {
       fetchWorkspace();
+      fetchProjects();
     }
   }, [workspaceId, router]);
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    setIsCreating(true);
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/projects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: newProjectName }),
+      });
+
+      if (response.ok) {
+        const newProject = await response.json();
+        setProjects((prev) => [...prev, newProject]);
+        setNewProjectName("");
+        setShowCreateForm(false);
+        toast.success(`Project "${newProjectName}" has been created successfully.`);
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to create project");
+      }
+    } catch (error) {
+      console.error("Error creating project:", error);
+      toast.error("Failed to create project. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   if (isLoading) {
     return <div className="p-8">Loading workspace...</div>;
@@ -70,31 +128,68 @@ export default function WorkspacePage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Workspace Overview</CardTitle>
-            <CardDescription>Summary of your workspace</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500 mb-2">
-              <span className="font-medium">ID:</span> {workspace.id}
-            </p>
-            <p className="text-sm text-gray-500 mb-2">
-              <span className="font-medium">Created:</span> {new Date().toLocaleDateString()}
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates in this workspace</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500">No recent activity</p>
-          </CardContent>
-        </Card>
+
+      <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Projects</h2>
+          <Button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            size="sm"
+            className="flex items-center gap-1"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Project</span>
+          </Button>
+        </div>
+
+        {showCreateForm && (
+          <form onSubmit={handleCreateProject} className="flex items-center gap-2 mb-4 p-4 border rounded-md bg-gray-50">
+            <Input
+              type="text"
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              className="flex-1"
+              required
+            />
+            <Button type="submit" disabled={isCreating}>
+              {isCreating ? "Creating..." : "Create"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
+              Cancel
+            </Button>
+          </form>
+        )}
+
+        {projects.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map((project) => (
+              <Link
+                href={`/dashboard/workspaces/${workspaceId}/projects/${project.id}`}
+                key={project.id}
+              >
+                <Card className="hover:border-blue-400 transition-colors cursor-pointer">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-xs text-gray-500">
+                      Created: {new Date(project.createdAt).toLocaleDateString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center p-8 border rounded-md bg-gray-50">
+            <p className="text-gray-500">No projects found</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Create a new project to get started
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
