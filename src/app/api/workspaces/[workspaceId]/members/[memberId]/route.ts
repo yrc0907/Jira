@@ -4,43 +4,111 @@ import { auth } from '@/auth';
 
 const prisma = new PrismaClient();
 
+export async function PUT(
+  request: Request,
+  { params }: { params: { workspaceId: string; memberId: string } }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { workspaceId, memberId } = params;
+    const { role } = await request.json();
+
+    if (!role || !['admin', 'member'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role specified' }, { status: 400 });
+    }
+
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+    }
+
+    if (workspace.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Only the workspace owner can change roles.' }, { status: 403 });
+    }
+
+    const memberToUpdate = await prisma.workspaceMember.findFirst({
+      where: {
+        userId: memberId,
+        workspaceId: workspaceId
+      }
+    })
+
+    if (!memberToUpdate) {
+      return NextResponse.json({ error: 'Member not found in this workspace.' }, { status: 404 });
+    }
+
+    if (memberToUpdate.userId === session.user.id) {
+      return NextResponse.json({ error: 'Owner role cannot be changed.' }, { status: 400 });
+    }
+
+    await prisma.workspaceMember.update({
+      where: {
+        id: memberToUpdate.id
+      },
+      data: { role },
+    });
+
+    return NextResponse.json({ message: 'Member role updated successfully' }, { status: 200 });
+  } catch (error) {
+    console.error('Error updating member role:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: { workspaceId: string; memberId: string } }
 ) {
   try {
     const session = await auth();
-
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { workspaceId, memberId: userId } = params;
+    const { workspaceId, memberId: userIdToRemove } = params;
 
-    // Check if the current user is the owner of the workspace
-    const workspace = await prisma.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        userId: session.user.id,
-      },
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: { members: true }
     });
 
     if (!workspace) {
-      return NextResponse.json({ error: 'Workspace not found or you are not the owner' }, { status: 403 });
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
     }
 
-    // Prevent owner from removing themselves
-    if (userId === session.user.id) {
-      return NextResponse.json({ error: "Owner cannot be removed from the workspace." }, { status: 400 });
+    const currentUserMembership = workspace.members.find(m => m.userId === session.user.id);
+    const isOwner = workspace.userId === session.user.id;
+    const currentUserRole = isOwner ? 'OWNER' : currentUserMembership?.role.toUpperCase();
+
+    if (!currentUserRole) {
+      return NextResponse.json({ error: 'You are not a member of this workspace.' }, { status: 403 });
     }
 
-    // Remove the user from the workspace
+    const memberToRemove = workspace.members.find(m => m.userId === userIdToRemove);
+    if (!memberToRemove) {
+      return NextResponse.json({ error: 'Member not found in this workspace.' }, { status: 404 });
+    }
+
+    const memberToRemoveRole = memberToRemove.role.toUpperCase();
+
+    const canRemove =
+      (currentUserRole === 'OWNER' && userIdToRemove !== session.user.id) ||
+      (currentUserRole === 'ADMIN' && memberToRemoveRole === 'MEMBER');
+
+    if (!canRemove) {
+      return NextResponse.json({ error: 'You do not have permission to remove this member.' }, { status: 403 });
+    }
+
     await prisma.workspaceMember.delete({
       where: {
-        workspaceId_userId: {
-          workspaceId,
-          userId,
-        },
+        id: memberToRemove.id,
       },
     });
 
