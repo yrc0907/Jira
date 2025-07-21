@@ -27,6 +27,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface Project {
   id: string;
@@ -43,11 +49,11 @@ interface Task {
   dueDate?: string | null;
   createdAt: string;
   updatedAt: string;
-  assignee?: {
+  assignees: {
     id: string;
     name?: string | null;
     username: string;
-  } | null;
+  }[];
 }
 
 type ViewType = "table" | "kanban" | "calendar";
@@ -449,12 +455,22 @@ export default function ProjectPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {task.assignee ? (
-                            <div className="flex items-center">
-                              <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center mr-2 text-xs font-medium">
-                                {task.assignee.name?.[0] || task.assignee.username[0].toUpperCase()}
-                              </div>
-                              <span>{task.assignee.name || task.assignee.username}</span>
+                          {task.assignees.length > 0 ? (
+                            <div className="flex items-center -space-x-2">
+                              <TooltipProvider>
+                                {task.assignees.map(assignee => (
+                                  <Tooltip key={assignee.id}>
+                                    <TooltipTrigger asChild>
+                                      <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium border-2 border-white transition-all duration-300 hover:scale-150 hover:mx-1 hover:z-10 cursor-pointer">
+                                        {assignee.name?.[0] || assignee.username[0].toUpperCase()}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{assignee.name || assignee.username}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ))}
+                              </TooltipProvider>
                             </div>
                           ) : (
                             <span className="text-gray-400">未分配</span>
