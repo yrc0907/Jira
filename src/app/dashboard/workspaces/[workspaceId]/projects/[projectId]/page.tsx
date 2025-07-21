@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Settings, Calendar as CalendarIcon, ChevronDown, Filter, MoreVertical, Plus, User, Users } from "lucide-react";
+import { Settings, Calendar as CalendarIcon, ChevronDown, Filter, MoreVertical, Plus, User, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -37,6 +37,9 @@ import {
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import { X } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
+import { ProjectStatsCards } from "@/components/ProjectStatsCards";
+import { TaskTrendChart } from "@/components/TaskTrendChart";
 
 function DraggableAvatar({ user }: { user: any }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -285,6 +288,7 @@ export default function ProjectPage() {
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [inlineTaskName, setInlineTaskName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [previousTaskCount, setPreviousTaskCount] = useState<number | undefined>(undefined);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -296,6 +300,16 @@ export default function ProjectPage() {
     type: null,
     date: null
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [assigneeSearch, setAssigneeSearch] = useState("");
+
+  const filteredAssignees = useMemo(() => {
+    if (!assigneeSearch) return workspaceUsers;
+    return workspaceUsers.filter(user =>
+      user.name?.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
+      user.username.toLowerCase().includes(assigneeSearch.toLowerCase())
+    );
+  }, [workspaceUsers, assigneeSearch]);
 
   const handleUpdateTask = async (taskId: string, data: Partial<Task>) => {
     const originalTasks = [...tasks];
@@ -568,11 +582,18 @@ export default function ProjectPage() {
         });
       }
 
+      // Filter by search query
+      if (searchQuery) {
+        filtered = filtered.filter(task =>
+          task.name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+
       setFilteredTasks(filtered);
     } else {
       setFilteredTasks([]);
     }
-  }, [tasks, statusFilter, assigneeFilter, dueDateFilter]);
+  }, [tasks, statusFilter, assigneeFilter, dueDateFilter, searchQuery]);
 
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTasks((prev) =>
@@ -622,7 +643,7 @@ export default function ProjectPage() {
 
   return (
     <DndContext onDragEnd={handleDragEnd}>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">{project.name}</h1>
           <div className="flex items-center space-x-2">
@@ -644,6 +665,13 @@ export default function ProjectPage() {
               onTaskCreated={handleTaskCreated}
             />
           </div>
+        </div>
+
+        <ProjectStatsCards tasks={tasks} previousTaskCount={previousTaskCount} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+          <TaskTrendChart tasks={tasks} />
+          {/* You can add more summary cards or charts here */}
         </div>
 
         {/* 视图选择器 */}
@@ -674,6 +702,16 @@ export default function ProjectPage() {
 
           {/* 筛选器 */}
           <div className="p-4 flex flex-wrap gap-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by task name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 w-full sm:w-64"
+              />
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="flex items-center gap-1">
@@ -715,11 +753,20 @@ export default function ProjectPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                <div className="p-2">
+                  <Input
+                    placeholder="Search assignee..."
+                    value={assigneeSearch}
+                    onChange={(e) => setAssigneeSearch(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setAssigneeFilter(null)}>
                   所有负责人
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {workspaceUsers.map(user => (
+                {filteredAssignees.map(user => (
                   <DropdownMenuItem
                     key={user.id}
                     onClick={() => setAssigneeFilter(user.id)}
@@ -813,6 +860,8 @@ export default function ProjectPage() {
                   setStatusFilter(null);
                   setAssigneeFilter(null);
                   setDueDateFilter({ type: null, date: null });
+                  setSearchQuery("");
+                  setAssigneeSearch("");
                 }}
               >
                 <X className="h-4 w-4" />

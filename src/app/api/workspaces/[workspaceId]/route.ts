@@ -9,7 +9,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
-  console.log("GET workspace API called with ID:", params.workspaceId);
+  const { workspaceId } = await params;
+  console.log("GET workspace API called with ID:", workspaceId);
 
   const session = await auth();
   console.log("Session user ID:", session?.user?.id);
@@ -22,7 +23,7 @@ export async function GET(
   try {
     const workspace = await db.workspace.findFirst({
       where: {
-        id: params.workspaceId,
+        id: workspaceId,
         OR: [
           {
             userId: session.user.id,
@@ -78,6 +79,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
+  const { workspaceId } = params;
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -99,7 +101,7 @@ export async function PATCH(
     // Check if workspace exists and belongs to user
     const existingWorkspace = await db.workspace.findUnique({
       where: {
-        id: params.workspaceId,
+        id: workspaceId,
         userId: session.user.id,
       },
     });
@@ -125,7 +127,7 @@ export async function PATCH(
     // Update workspace
     const updatedWorkspace = await db.workspace.update({
       where: {
-        id: params.workspaceId,
+        id: workspaceId,
       },
       data: {
         name,
@@ -148,6 +150,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { workspaceId: string } }
 ) {
+  const { workspaceId } = params;
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -158,7 +161,7 @@ export async function DELETE(
     // Check if workspace exists and belongs to user
     const existingWorkspace = await db.workspace.findUnique({
       where: {
-        id: params.workspaceId,
+        id: workspaceId,
         userId: session.user.id,
       },
     });
@@ -173,7 +176,7 @@ export async function DELETE(
     // Delete workspace
     await db.workspace.delete({
       where: {
-        id: params.workspaceId,
+        id: workspaceId,
       },
     });
 
