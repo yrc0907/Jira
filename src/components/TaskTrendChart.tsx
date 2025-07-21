@@ -86,7 +86,7 @@ export const TaskTrendChart = ({ tasks }: TaskTrendChartProps) => {
   }
 
   return (
-    <Card className="col-span-1 lg:col-span-3">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Task Trends</CardTitle>
