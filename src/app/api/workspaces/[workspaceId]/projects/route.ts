@@ -17,20 +17,27 @@ export async function GET(
       );
     }
 
-    const { workspaceId } = await params;
+    const { workspaceId } = params;
 
-    // Verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    // Verify the user is a member of the workspace
+    const member = await db.workspaceMember.findFirst({
       where: {
-        id: workspaceId,
-        userId: session.user.id
+        workspaceId,
+        userId: session.user.id,
       },
     });
 
-    if (!workspace) {
+    const workspaceOwner = await db.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        userId: session.user.id
+      }
+    })
+
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "You are not a member of this workspace" },
+        { status: 403 }
       );
     }
 
@@ -71,18 +78,25 @@ export async function POST(
 
     const { workspaceId } = params;
 
-    // Verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    // Verify the user is a member of the workspace
+    const member = await db.workspaceMember.findFirst({
       where: {
-        id: workspaceId,
-        userId: session.user.id
+        workspaceId,
+        userId: session.user.id,
       },
     });
 
-    if (!workspace) {
+    const workspaceOwner = await db.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        userId: session.user.id
+      }
+    })
+
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "You are not a member of this workspace" },
+        { status: 403 }
       );
     }
 

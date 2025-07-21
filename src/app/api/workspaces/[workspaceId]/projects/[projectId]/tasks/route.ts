@@ -19,18 +19,25 @@ export async function GET(
 
     const { workspaceId, projectId } = await params;
 
-    // Verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    // 验证用户是工作区的成员或所有者
+    const member = await db.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: session.user.id,
+      },
+    });
+
+    const workspaceOwner = await db.workspace.findFirst({
       where: {
         id: workspaceId,
         userId: session.user.id,
       },
     });
 
-    if (!workspace) {
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "您没有访问此工作区的权限" },
+        { status: 403 }
       );
     }
 
@@ -95,18 +102,25 @@ export async function POST(
 
     const { workspaceId, projectId } = params;
 
-    // Verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    // 验证用户是工作区的成员或所有者
+    const member = await db.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: session.user.id,
+      },
+    });
+
+    const workspaceOwner = await db.workspace.findFirst({
       where: {
         id: workspaceId,
         userId: session.user.id,
       },
     });
 
-    if (!workspace) {
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "您没有访问此工作区的权限" },
+        { status: 403 }
       );
     }
 

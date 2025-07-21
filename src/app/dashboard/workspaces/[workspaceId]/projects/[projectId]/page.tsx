@@ -159,6 +159,9 @@ export default function ProjectPage() {
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [workspaceUsers, setWorkspaceUsers] = useState<any[]>([]);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
+  const [inlineTaskName, setInlineTaskName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const fetchTasks = async () => {
     setIsLoadingTasks(true);
@@ -178,6 +181,52 @@ export default function ProjectPage() {
       setIsLoadingTasks(false);
     }
   };
+
+  const handleStartInlineEdit = (task: Task) => {
+    setInlineEditingTaskId(task.id);
+    setInlineTaskName(task.name);
+  };
+
+  const handleCancelInlineEdit = () => {
+    setInlineEditingTaskId(null);
+    setInlineTaskName("");
+  };
+
+  const handleSaveInlineEdit = async (taskId: string) => {
+    if (isSaving) return;
+
+    if (!inlineTaskName.trim()) {
+      toast.error("任务名称不能为空");
+      handleCancelInlineEdit();
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: inlineTaskName }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update task name');
+      }
+
+      toast.success('任务名称已更新');
+      fetchTasks();
+    } catch (error) {
+      console.error('Error updating task name:', error);
+      toast.error('更新任务名称失败');
+    } finally {
+      handleCancelInlineEdit();
+      setIsSaving(false);
+    }
+  };
+
 
   const fetchWorkspaceMembers = async () => {
     try {
@@ -374,7 +423,31 @@ export default function ProjectPage() {
                             onCheckedChange={() => toggleTaskSelection(task.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{task.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {inlineEditingTaskId === task.id ? (
+                            <input
+                              type="text"
+                              value={inlineTaskName}
+                              onChange={(e) => setInlineTaskName(e.target.value)}
+                              onBlur={() => handleSaveInlineEdit(task.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveInlineEdit(task.id);
+                                }
+                                if (e.key === 'Escape') handleCancelInlineEdit();
+                              }}
+                              className="bg-transparent border-b border-gray-400 focus:outline-none focus:border-blue-500 w-full"
+                              autoFocus
+                              title="Task Name"
+                              placeholder="Enter task name"
+                            />
+                          ) : (
+                            <span onClick={() => handleStartInlineEdit(task)} className="cursor-pointer">
+                              {task.name}
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {task.assignee ? (
                             <div className="flex items-center">

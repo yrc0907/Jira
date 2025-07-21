@@ -79,6 +79,14 @@ export function EditTaskDialog({
   const [assigneeId, setAssigneeId] = useState<string>(task.assigneeId || "");
   const [selectedUser, setSelectedUser] = useState<WorkspaceUser | null>(null);
 
+  useEffect(() => {
+    setName(task.name);
+    setDescription(task.description || "");
+    setStatus(task.status);
+    setDate(task.dueDate ? new Date(task.dueDate) : undefined);
+    setAssigneeId(task.assigneeId || "");
+  }, [task]);
+
   // Set selected user based on assigneeId
   useEffect(() => {
     if (assigneeId && workspaceUsers.length > 0) {
@@ -137,8 +145,12 @@ export function EditTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
-      setOpen(isOpen);
-      if (!isOpen) onTaskUpdated();
+      if (!isOpen) {
+        setOpen(false);
+        onTaskUpdated();
+      } else {
+        setOpen(true);
+      }
     }}>
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>

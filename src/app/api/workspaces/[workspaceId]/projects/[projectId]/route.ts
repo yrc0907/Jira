@@ -17,20 +17,26 @@ export async function GET(
       );
     }
 
-    const { workspaceId, projectId } = await params;
+    const { workspaceId, projectId } = params;
 
-    // First verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    const member = await db.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: session.user.id
+      }
+    });
+
+    const workspaceOwner = await db.workspace.findFirst({
       where: {
         id: workspaceId,
         userId: session.user.id
-      },
+      }
     });
 
-    if (!workspace) {
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "Forbidden" },
+        { status: 403 }
       );
     }
 
@@ -76,18 +82,24 @@ export async function PUT(
 
     const { workspaceId, projectId } = params;
 
-    // First verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    const member = await db.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: session.user.id
+      }
+    });
+
+    const workspaceOwner = await db.workspace.findFirst({
       where: {
         id: workspaceId,
         userId: session.user.id
-      },
+      }
     });
 
-    if (!workspace) {
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "Forbidden" },
+        { status: 403 }
       );
     }
 
@@ -154,18 +166,24 @@ export async function DELETE(
 
     const { workspaceId, projectId } = params;
 
-    // First verify the workspace exists and belongs to the user
-    const workspace = await db.workspace.findUnique({
+    const member = await db.workspaceMember.findFirst({
+      where: {
+        workspaceId,
+        userId: session.user.id
+      }
+    });
+
+    const workspaceOwner = await db.workspace.findFirst({
       where: {
         id: workspaceId,
         userId: session.user.id
-      },
+      }
     });
 
-    if (!workspace) {
+    if (!member && !workspaceOwner) {
       return NextResponse.json(
-        { error: "Workspace not found" },
-        { status: 404 }
+        { error: "Forbidden" },
+        { status: 403 }
       );
     }
 

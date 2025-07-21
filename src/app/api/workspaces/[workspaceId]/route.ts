@@ -20,15 +20,47 @@ export async function GET(
   }
 
   try {
-    const workspace = await db.workspace.findUnique({
+    const workspace = await db.workspace.findFirst({
       where: {
         id: params.workspaceId,
-        userId: session.user.id,
+        OR: [
+          {
+            userId: session.user.id,
+          },
+          {
+            members: {
+              some: {
+                userId: session.user.id,
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        projects: {
+          include: {
+            tasks: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!workspace) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Workspace not found or you are not a member" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(workspace);
