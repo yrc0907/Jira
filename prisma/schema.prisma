@@ -44,6 +44,7 @@ model Workspace {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   projects  Project[]
   members   WorkspaceMember[]
+  invites   Invite[]
 }
 
 model Project {
@@ -71,6 +72,15 @@ model Task {
   
   assigneeId  String?   // Optional: task can be unassigned
   assignee    User?     @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
 }
 
 model WorkspaceMember {

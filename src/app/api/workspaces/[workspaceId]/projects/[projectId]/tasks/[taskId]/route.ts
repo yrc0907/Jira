@@ -29,6 +29,23 @@ export async function PATCH(
       return NextResponse.json({ error: 'Task name is required' }, { status: 400 });
     }
 
+    // Verify user has access to the workspace
+    const workspaceMember = await prisma.workspaceMember.findFirst({
+      where: {
+        userId: session.user.id,
+        workspaceId: workspaceId,
+      },
+    });
+    const workspaceOwner = await prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        userId: session.user.id
+      }
+    })
+    if (!workspaceMember && !workspaceOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Check if the task exists
     const existingTask = await prisma.task.findUnique({
       where: { id: taskId },
@@ -90,6 +107,23 @@ export async function DELETE(
     }
 
     const { workspaceId, projectId, taskId } = params;
+
+    // Verify user has access to the workspace
+    const workspaceMember = await prisma.workspaceMember.findFirst({
+      where: {
+        userId: session.user.id,
+        workspaceId: workspaceId,
+      },
+    });
+    const workspaceOwner = await prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        userId: session.user.id
+      }
+    })
+    if (!workspaceMember && !workspaceOwner) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Check if the task exists
     const existingTask = await prisma.task.findUnique({

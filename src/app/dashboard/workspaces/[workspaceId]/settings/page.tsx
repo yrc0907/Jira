@@ -46,7 +46,6 @@ export default function WorkspaceSettings() {
         setWorkspace(data);
         setWorkspaceName(data.name);
         setIconPreview(data.iconUrl);
-        setInviteLink(`http://localhost:3000/workspaces/${data.id}/join/${Math.random().toString(36).substring(2, 15)}`);
       } catch (error) {
         console.error("Error fetching workspace:", error);
       } finally {
@@ -54,8 +53,20 @@ export default function WorkspaceSettings() {
       }
     };
 
+    const fetchInviteLink = async () => {
+      try {
+        // Since there is no GET endpoint for invites anymore, we can just generate a new one.
+        // Or we can retrieve the existing one if we modify the API.
+        // For now, let's just generate a new one each time the page loads.
+        await handleResetInviteLink(true);
+      } catch (error) {
+        console.error("Error fetching invite link:", error);
+      }
+    };
+
     if (workspaceId) {
       fetchWorkspace();
+      fetchInviteLink();
     } else {
       console.error("No workspaceId provided");
       setIsLoading(false);
@@ -120,8 +131,26 @@ export default function WorkspaceSettings() {
     }
   };
 
-  const handleResetInviteLink = () => {
-    setInviteLink(`http://localhost:3000/workspaces/${workspaceId}/join/${Math.random().toString(36).substring(2, 15)}`);
+  const handleResetInviteLink = async (silent = false) => {
+    try {
+      const response = await fetch(`/api/invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ workspaceId }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setInviteLink(`http://localhost:3000/invite?code=${data.code}`);
+        if (!silent) alert("邀请链接已重置。");
+      } else {
+        if (!silent) alert("重置邀请链接失败。");
+      }
+    } catch (error) {
+      console.error("重置邀请链接时出错:", error);
+      if (!silent) alert("重置邀请链接时发生错误。");
+    }
   };
 
   if (isLoading) {
@@ -215,7 +244,7 @@ export default function WorkspaceSettings() {
           </div>
 
           <div className="mt-4">
-            <Button variant="outline" onClick={handleResetInviteLink}>
+            <Button variant="outline" onClick={() => handleResetInviteLink()}>
               Reset invite link
             </Button>
           </div>
