@@ -59,10 +59,10 @@ export async function GET(
     // Get tasks for this project
     const tasks = await db.task.findMany({
       where: {
-        projectId,
+        projectId: projectId,
       },
       include: {
-        assignee: {
+        assignees: {
           select: {
             id: true,
             name: true,
@@ -71,8 +71,8 @@ export async function GET(
         },
       },
       orderBy: {
-        updatedAt: "desc",
-      },
+        createdAt: 'asc',
+      }
     });
 
     return NextResponse.json(tasks);
@@ -92,73 +92,34 @@ export async function POST(
 ) {
   try {
     const session = await auth();
-
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "You must be logged in to access this resource" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { workspaceId, projectId } = params;
-
-    // 验证用户是工作区的成员或所有者
-    const member = await db.workspaceMember.findFirst({
-      where: {
-        workspaceId,
-        userId: session.user.id,
-      },
-    });
-
-    const workspaceOwner = await db.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!member && !workspaceOwner) {
-      return NextResponse.json(
-        { error: "您没有访问此工作区的权限" },
-        { status: 403 }
-      );
-    }
-
-    // Verify the project exists and belongs to this workspace
-    const project = await db.project.findUnique({
-      where: {
-        id: projectId,
-        workspaceId,
-      },
-    });
-
-    if (!project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
-    }
-
-    // Parse the request body
     const body = await request.json();
 
-    // Validate request body
-    if (!body.name || typeof body.name !== "string") {
-      return NextResponse.json(
-        { error: "Task name is required" },
-        { status: 400 }
-      );
+    const { name, description, status, dueDate, assigneeIds } = body;
+
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    // Create the task
+    // Further validation can be added here
+
     const task = await db.task.create({
       data: {
-        name: body.name,
-        description: body.description,
-        status: body.status || "Backlog",
-        dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
-        projectId,
-        assigneeId: body.assigneeId,
+        name,
+        description,
+        status,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        projectId: projectId,
+        assignees: {
+          connect: assigneeIds?.map((id: string) => ({ id })) || []
+        },
+      },
+      include: {
+        assignees: true,
       },
     });
 
