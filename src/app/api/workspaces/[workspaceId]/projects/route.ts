@@ -1,69 +1,64 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { db } from "@/lib/db";
+import { PrismaClient } from '@prisma/client';
+import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 
-// GET /api/workspaces/:workspaceId/projects
+const prisma = new PrismaClient();
+
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { workspaceId: string } }
 ) {
   try {
     const session = await auth();
-
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "You must be logged in to access this resource" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { workspaceId } = params;
+    const { workspaceId } = await params;
 
-    // Verify the user is a member of the workspace
-    const member = await db.workspaceMember.findFirst({
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+    }
+
+    const isOwner = workspace.userId === session.user.id;
+    const member = await prisma.workspaceMember.findFirst({
       where: {
-        workspaceId,
+        workspaceId: workspaceId,
         userId: session.user.id,
       },
     });
 
-    const workspaceOwner = await db.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        userId: session.user.id
-      }
-    })
-
-    if (!member && !workspaceOwner) {
-      return NextResponse.json(
-        { error: "You are not a member of this workspace" },
-        { status: 403 }
-      );
+    if (!isOwner && !member) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get all projects for this workspace
-    const projects = await db.project.findMany({
+    const projects = await prisma.project.findMany({
       where: {
-        workspaceId,
+        workspaceId: workspaceId,
+      },
+      select: {
+        id: true,
+        name: true,
       },
       orderBy: {
-        updatedAt: "desc",
-      },
+        createdAt: 'asc'
+      }
     });
 
     return NextResponse.json(projects);
   } catch (error) {
-    console.error("Error fetching projects:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch projects" },
-      { status: 500 }
-    );
+    console.error('Error fetching projects:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 // POST /api/workspaces/:workspaceId/projects
 export async function POST(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { workspaceId: string } }
 ) {
   try {
@@ -79,14 +74,14 @@ export async function POST(
     const { workspaceId } = params;
 
     // Verify the user is a member of the workspace
-    const member = await db.workspaceMember.findFirst({
+    const member = await prisma.workspaceMember.findFirst({
       where: {
         workspaceId,
         userId: session.user.id,
       },
     });
 
-    const workspaceOwner = await db.workspace.findFirst({
+    const workspaceOwner = await prisma.workspace.findFirst({
       where: {
         id: workspaceId,
         userId: session.user.id
@@ -112,7 +107,7 @@ export async function POST(
     }
 
     // Create the new project
-    const project = await db.project.create({
+    const project = await prisma.project.create({
       data: {
         name: body.name,
         workspaceId,
