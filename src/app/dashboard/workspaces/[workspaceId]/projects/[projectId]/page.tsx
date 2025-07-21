@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Settings, Calendar, ChevronDown, Filter, MoreVertical, Plus, User, Users } from "lucide-react";
+import { Settings, Calendar as CalendarIcon, ChevronDown, Filter, MoreVertical, Plus, User, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -26,6 +26,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
@@ -33,6 +34,102 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
+import { X } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
+
+function DraggableAvatar({ user }: { user: any }) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: user.id,
+    data: { user },
+  });
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : undefined;
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium border-2 border-white cursor-pointer">
+              {user.name?.[0] || user.username[0].toUpperCase()}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{user.name || user.username}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+}
+
+// New component for avatars within task rows
+function TaskAssigneeAvatar({ user, task, onRemove }: { user: any; task: Task; onRemove: (taskId: string, userId: string) => void; }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: `${task.id}-${user.id}`,
+    data: { user, fromTask: task.id },
+  });
+
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    zIndex: 100, // Ensure dragged avatar is on top
+  } : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className="relative"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium border-2 border-white transition-all duration-300 hover:scale-150 hover:mx-2 hover:z-10 cursor-pointer">
+              {user.name?.[0] || user.username[0].toUpperCase()}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{user.name || user.username}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      {isHovered && (
+        <button
+          onClick={() => onRemove(task.id, user.id)}
+          className="absolute -top-1 -right-1 bg-gray-700 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs z-20 hover:bg-red-500 transition-colors"
+          aria-label="Remove assignee"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+function DroppableTaskRow({ task, children, onAssigneeDrop }: { task: Task, children: React.ReactNode, onAssigneeDrop: (taskId: string, user: any) => void }) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: task.id,
+  });
+
+  const style = {
+    backgroundColor: isOver ? 'rgba(0, 0, 255, 0.05)' : undefined,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      {children}
+    </TableRow>
+  );
+}
+
 
 interface Project {
   id: string;
@@ -58,7 +155,7 @@ interface Task {
 
 type ViewType = "table" | "kanban" | "calendar";
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({ status, onUpdate }: { status: string; onUpdate?: (newStatus: string) => void }) => {
   // 状态名称映射
   const statusMap: Record<string, string> = {
     "Backlog": "待处理",
@@ -84,6 +181,25 @@ const StatusBadge = ({ status }: { status: string }) => {
         return "bg-gray-100 text-gray-700 hover:bg-gray-100";
     }
   };
+
+  if (onUpdate) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Badge className={`${getStatusColor(status)} font-medium cursor-pointer`}>
+            {statusMap[status] || status}
+          </Badge>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          {Object.entries(statusMap).map(([key, value]) => (
+            <DropdownMenuItem key={key} onSelect={() => onUpdate(key)}>
+              {value}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <Badge className={`${getStatusColor(status)} font-medium`}>
@@ -159,6 +275,7 @@ export default function ProjectPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [activeView, setActiveView] = useState<ViewType>("table");
@@ -168,6 +285,140 @@ export default function ProjectPage() {
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [inlineTaskName, setInlineTaskName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [dueDateFilter, setDueDateFilter] = useState<{
+    type: 'before' | 'after' | 'on' | null,
+    date: Date | null
+  }>({
+    type: null,
+    date: null
+  });
+
+  const handleUpdateTask = async (taskId: string, data: Partial<Task>) => {
+    const originalTasks = [...tasks];
+    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, ...data } : t);
+    setTasks(updatedTasks);
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update task');
+      }
+
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error('Failed to update task');
+      setTasks(originalTasks);
+    }
+  };
+
+  const handleRemoveAssignee = (taskId: string, assigneeIdToRemove: string) => {
+    const originalTasks = [...tasks];
+    const updatedTasks = tasks.map(task => {
+      if (task.id === taskId) {
+        return {
+          ...task,
+          assignees: task.assignees.filter(a => a.id !== assigneeIdToRemove)
+        };
+      }
+      return task;
+    });
+    setTasks(updatedTasks);
+
+    const taskToUpdate = updatedTasks.find(t => t.id === taskId);
+    if (!taskToUpdate) return;
+    const assigneeIds = taskToUpdate.assignees.map(a => a.id);
+
+    fetch(`/api/workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assigneeIds }),
+    }).then(response => {
+      if (!response.ok) {
+        setTasks(originalTasks);
+        toast.error("Failed to remove assignee.");
+      } else {
+        toast.success("Assignee removed.");
+      }
+    }).catch(() => {
+      setTasks(originalTasks);
+      toast.error("An error occurred while removing the assignee.");
+    });
+  };
+
+  const handleDragEnd = (event: any) => {
+    const { over, active } = event;
+    if (over && active) {
+      const { user, fromTask } = active.data.current;
+      const toTask = over.id;
+
+      // Prevent dropping on the same task if user is already assigned
+      if (fromTask === toTask) return;
+
+      const taskToUpdate = tasks.find(t => t.id === toTask);
+      if (taskToUpdate?.assignees.some(a => a.id === user.id)) {
+        toast.info("User is already assigned to this task.");
+        return;
+      }
+
+      const originalTasks = [...tasks];
+
+      // Optimistic update
+      const updatedTasks = tasks.map(task => {
+        // Remove from old task
+        if (task.id === fromTask) {
+          return { ...task, assignees: task.assignees.filter(a => a.id !== user.id) };
+        }
+        // Add to new task
+        if (task.id === toTask) {
+          return { ...task, assignees: [...task.assignees, user] };
+        }
+        return task;
+      });
+      setTasks(updatedTasks);
+
+      // API calls
+      const fromTaskUpdate = updatedTasks.find(t => t.id === fromTask);
+      const toTaskUpdate = updatedTasks.find(t => t.id === toTask);
+
+      const fromTaskAssigneeIds = fromTaskUpdate?.assignees.map(a => a.id) || [];
+      const toTaskAssigneeIds = toTaskUpdate?.assignees.map(a => a.id) || [];
+
+      Promise.all([
+        fetch(`/api/workspaces/${workspaceId}/projects/${projectId}/tasks/${fromTask}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assigneeIds: fromTaskAssigneeIds }),
+        }),
+        fetch(`/api/workspaces/${workspaceId}/projects/${projectId}/tasks/${toTask}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assigneeIds: toTaskAssigneeIds }),
+        })
+      ]).then(async ([fromResponse, toResponse]) => {
+        if (!fromResponse.ok || !toResponse.ok) {
+          setTasks(originalTasks);
+          toast.error("Failed to reassign task.");
+        } else {
+          toast.success("Task reassigned successfully!");
+        }
+      }).catch(error => {
+        console.error(error);
+        setTasks(originalTasks);
+        toast.error("An error occurred during reassignment.");
+      });
+    }
+  };
 
   const fetchTasks = async () => {
     setIsLoadingTasks(true);
@@ -277,6 +528,52 @@ export default function ProjectPage() {
     }
   }, [workspaceId, projectId, router]);
 
+  useEffect(() => {
+    if (tasks.length > 0) {
+      let filtered = [...tasks];
+
+      // Filter by status
+      if (statusFilter) {
+        filtered = filtered.filter(task => task.status === statusFilter);
+      }
+
+      // Filter by assignee
+      if (assigneeFilter) {
+        filtered = filtered.filter(task =>
+          task.assignees.some(assignee => assignee.id === assigneeFilter)
+        );
+      }
+
+      // Filter by due date
+      if (dueDateFilter.type && dueDateFilter.date) {
+        const filterDate = new Date(dueDateFilter.date);
+        filtered = filtered.filter(task => {
+          if (!task.dueDate) return false;
+          const taskDate = new Date(task.dueDate);
+
+          switch (dueDateFilter.type) {
+            case 'before':
+              return taskDate < filterDate;
+            case 'after':
+              return taskDate > filterDate;
+            case 'on':
+              return (
+                taskDate.getFullYear() === filterDate.getFullYear() &&
+                taskDate.getMonth() === filterDate.getMonth() &&
+                taskDate.getDate() === filterDate.getDate()
+              );
+            default:
+              return true;
+          }
+        });
+      }
+
+      setFilteredTasks(filtered);
+    } else {
+      setFilteredTasks([]);
+    }
+  }, [tasks, statusFilter, assigneeFilter, dueDateFilter]);
+
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTasks((prev) =>
       prev.includes(taskId)
@@ -286,10 +583,10 @@ export default function ProjectPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedTasks.length === tasks.length) {
+    if (selectedTasks.length === filteredTasks.length) {
       setSelectedTasks([]);
     } else {
-      setSelectedTasks(tasks.map((task) => task.id));
+      setSelectedTasks(filteredTasks.map((task) => task.id));
     }
   };
 
@@ -324,231 +621,368 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <div className="flex items-center space-x-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/dashboard/workspaces/${workspaceId}/projects/${projectId}/settings`}>
-              <Settings className="h-4 w-4 mr-1" />
-              设置
-            </Link>
-          </Button>
-          <AddMemberDialog
-            workspaceId={workspaceId}
-            onMemberAdded={handleMemberAdded}
-            variant="outline"
-            size="sm"
-          />
-          <CreateTaskDialog
+    <DndContext onDragEnd={handleDragEnd}>
+      <div className="flex flex-col h-full">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">{project.name}</h1>
+          <div className="flex items-center space-x-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/dashboard/workspaces/${workspaceId}/projects/${projectId}/settings`}>
+                <Settings className="h-4 w-4 mr-1" />
+                设置
+              </Link>
+            </Button>
+            <AddMemberDialog
+              workspaceId={workspaceId}
+              onMemberAdded={handleMemberAdded}
+              variant="outline"
+              size="sm"
+            />
+            <CreateTaskDialog
+              workspaceId={workspaceId}
+              projectId={projectId}
+              onTaskCreated={handleTaskCreated}
+            />
+          </div>
+        </div>
+
+        {/* 视图选择器 */}
+        <div className="bg-gray-50 rounded-lg mb-6">
+          <div className="flex flex-wrap border-b">
+            <Button
+              variant={activeView === "table" ? "secondary" : "ghost"}
+              onClick={() => setActiveView("table")}
+              className="rounded-none rounded-tl-lg border-0"
+            >
+              表格
+            </Button>
+            <Button
+              variant={activeView === "kanban" ? "secondary" : "ghost"}
+              onClick={() => setActiveView("kanban")}
+              className="rounded-none border-0"
+            >
+              看板
+            </Button>
+            <Button
+              variant={activeView === "calendar" ? "secondary" : "ghost"}
+              onClick={() => setActiveView("calendar")}
+              className="rounded-none border-0"
+            >
+              日历
+            </Button>
+          </div>
+
+          {/* 筛选器 */}
+          <div className="p-4 flex flex-wrap gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-1">
+                  <Filter className="h-4 w-4" />
+                  {statusFilter ? statusFilter : "所有状态"}
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setStatusFilter(null)}>
+                  所有状态
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("Backlog")}>
+                  待处理
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("Todo")}>
+                  待办
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("In Progress")}>
+                  进行中
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("In Review")}>
+                  审核中
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("Done")}>
+                  已完成
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-1">
+                  <Users className="h-4 w-4" />
+                  {assigneeFilter
+                    ? workspaceUsers.find(user => user.id === assigneeFilter)?.name || '已选择负责人'
+                    : `所有负责人 (${workspaceUsers.length})`}
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setAssigneeFilter(null)}>
+                  所有负责人
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {workspaceUsers.map(user => (
+                  <DropdownMenuItem
+                    key={user.id}
+                    onClick={() => setAssigneeFilter(user.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium">
+                      {user.name?.[0] || user.username[0].toUpperCase()}
+                    </div>
+                    <span>{user.name || user.username}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-1">
+                  <CalendarIcon className="h-4 w-4" />
+                  {dueDateFilter.type
+                    ? `截止日期 ${dueDateFilter.type === 'before' ? '早于' : dueDateFilter.type === 'after' ? '晚于' : '是'} ${dueDateFilter.date?.toLocaleDateString()}`
+                    : "截止日期"}
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-80">
+                <div className="p-2">
+                  <div className="mb-4">
+                    <div className="flex gap-2">
+                      <Button
+                        variant={dueDateFilter.type === 'before' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setDueDateFilter(prev => ({ ...prev, type: 'before' }))}
+                        className="flex-1"
+                      >
+                        早于
+                      </Button>
+                      <Button
+                        variant={dueDateFilter.type === 'on' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setDueDateFilter(prev => ({ ...prev, type: 'on' }))}
+                        className="flex-1"
+                      >
+                        在当天
+                      </Button>
+                      <Button
+                        variant={dueDateFilter.type === 'after' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setDueDateFilter(prev => ({ ...prev, type: 'after' }))}
+                        className="flex-1"
+                      >
+                        晚于
+                      </Button>
+                    </div>
+                  </div>
+
+                  <DatePicker
+                    date={dueDateFilter.date || undefined}
+                    setDate={(date) => setDueDateFilter(prev => ({ ...prev, date: date || null }))}
+                  />
+
+                  <div className="flex justify-between mt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDueDateFilter({ type: null, date: null })}
+                    >
+                      清除
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!dueDateFilter.type) {
+                          setDueDateFilter(prev => ({ ...prev, type: 'on' }));
+                        }
+                      }}
+                      disabled={!dueDateFilter.date}
+                    >
+                      应用
+                    </Button>
+                  </div>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {(statusFilter || assigneeFilter || dueDateFilter.type) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={() => {
+                  setStatusFilter(null);
+                  setAssigneeFilter(null);
+                  setDueDateFilter({ type: null, date: null });
+                }}
+              >
+                <X className="h-4 w-4" />
+                清除所有筛选
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* 表格视图 */}
+        {activeView === "table" && (
+          <div className="bg-white border rounded-lg overflow-hidden">
+            {isLoadingTasks ? (
+              <div className="p-8 text-center">
+                <p>加载任务中...</p>
+              </div>
+            ) : filteredTasks.length > 0 ? (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedTasks.length === filteredTasks.length && filteredTasks.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                        </TableHead>
+                        <TableHead className="min-w-[180px]">任务名称</TableHead>
+                        <TableHead className="min-w-[120px]">负责人</TableHead>
+                        <TableHead className="min-w-[150px]">截止日期</TableHead>
+                        <TableHead className="min-w-[120px]">状态</TableHead>
+                        <TableHead className="w-12"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTasks.map((task) => (
+                        <DroppableTaskRow key={task.id} task={task} onAssigneeDrop={(taskId, user) => { }}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedTasks.includes(task.id)}
+                              onCheckedChange={() => toggleTaskSelection(task.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {inlineEditingTaskId === task.id ? (
+                              <input
+                                type="text"
+                                value={inlineTaskName}
+                                onChange={(e) => setInlineTaskName(e.target.value)}
+                                onBlur={() => handleSaveInlineEdit(task.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSaveInlineEdit(task.id);
+                                  }
+                                  if (e.key === 'Escape') handleCancelInlineEdit();
+                                }}
+                                className="bg-transparent border-b border-gray-400 focus:outline-none focus:border-blue-500 w-full"
+                                autoFocus
+                                title="Task Name"
+                                placeholder="Enter task name"
+                              />
+                            ) : (
+                              <span onClick={() => handleStartInlineEdit(task)} className="cursor-pointer">
+                                {task.name}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {task.assignees.length > 0 ? (
+                              <div className="flex items-center -space-x-2">
+                                {task.assignees.map(assignee => (
+                                  <TaskAssigneeAvatar
+                                    key={assignee.id}
+                                    user={assignee}
+                                    task={task}
+                                    onRemove={handleRemoveAssignee}
+                                  />
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">未分配</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="w-[240px]">
+                              <DatePicker
+                                date={task.dueDate ? new Date(task.dueDate) : undefined}
+                                setDate={(date) =>
+                                  handleUpdateTask(task.id, { dueDate: date?.toISOString() })
+                                }
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              status={task.status}
+                              onUpdate={(newStatus) => handleUpdateTask(task.id, { status: newStatus })}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <TaskActionsMenu
+                              task={task}
+                              workspaceId={workspaceId}
+                              projectId={projectId}
+                              onTaskDeleted={handleDeleteTask}
+                              onEditClick={handleEditClick}
+                              workspaceUsers={workspaceUsers}
+                            />
+                          </TableCell>
+                        </DroppableTaskRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="p-4 border-t flex items-center justify-between text-sm text-gray-500">
+                  <div>已选择 {selectedTasks.length} / {filteredTasks.length} 个任务</div>
+                  <div className="flex items-center">
+                    <Button variant="outline" size="sm" className="mr-2" disabled>
+                      上一页
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : tasks.length > 0 ? (
+              <div className="text-center p-8">
+                <p className="text-gray-500">没有找到符合条件的任务</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  请尝试调整筛选条件
+                </p>
+              </div>
+            ) : (
+              <div className="text-center p-8">
+                <p className="text-gray-500">没有找到任务</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  创建一个新任务开始使用
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 看板视图 */}
+        {activeView === "kanban" && (
+          <KanbanView
+            tasks={filteredTasks}
             workspaceId={workspaceId}
             projectId={projectId}
-            onTaskCreated={handleTaskCreated}
+            onTaskUpdated={handleTaskUpdated}
+            workspaceUsers={workspaceUsers}
           />
-        </div>
+        )}
+
+        {/* 日历视图 */}
+        {activeView === "calendar" && <CalendarView tasks={filteredTasks} />}
+
+        {editingTask && (
+          <EditTaskDialog
+            task={editingTask}
+            workspaceId={workspaceId}
+            projectId={projectId}
+            onTaskUpdated={handleTaskUpdated}
+            workspaceUsers={workspaceUsers}
+          />
+        )}
       </div>
-
-      {/* 视图选择器 */}
-      <div className="bg-gray-50 rounded-lg mb-6">
-        <div className="flex flex-wrap border-b">
-          <Button
-            variant={activeView === "table" ? "secondary" : "ghost"}
-            onClick={() => setActiveView("table")}
-            className="rounded-none rounded-tl-lg border-0"
-          >
-            表格
-          </Button>
-          <Button
-            variant={activeView === "kanban" ? "secondary" : "ghost"}
-            onClick={() => setActiveView("kanban")}
-            className="rounded-none border-0"
-          >
-            看板
-          </Button>
-          <Button
-            variant={activeView === "calendar" ? "secondary" : "ghost"}
-            onClick={() => setActiveView("calendar")}
-            className="rounded-none border-0"
-          >
-            日历
-          </Button>
-        </div>
-
-        {/* 筛选器 */}
-        <div className="p-4 flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" className="flex items-center gap-1">
-            <Filter className="h-4 w-4" />
-            所有状态
-            <ChevronDown className="h-4 w-4 ml-1" />
-          </Button>
-          <Button variant="outline" size="sm" className="flex items-center gap-1">
-            <Users className="h-4 w-4" />
-            所有负责人 ({workspaceUsers.length})
-            <ChevronDown className="h-4 w-4 ml-1" />
-          </Button>
-          <Button variant="outline" size="sm" className="flex items-center gap-1">
-            <Calendar className="h-4 w-4" />
-            截止日期
-            <ChevronDown className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
-      </div>
-
-      {/* 表格视图 */}
-      {activeView === "table" && (
-        <div className="bg-white border rounded-lg overflow-hidden">
-          {isLoadingTasks ? (
-            <div className="p-8 text-center">
-              <p>加载任务中...</p>
-            </div>
-          ) : tasks.length > 0 ? (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={selectedTasks.length === tasks.length && tasks.length > 0}
-                          onCheckedChange={toggleSelectAll}
-                        />
-                      </TableHead>
-                      <TableHead className="min-w-[180px]">任务名称</TableHead>
-                      <TableHead className="min-w-[120px]">负责人</TableHead>
-                      <TableHead className="min-w-[150px]">截止日期</TableHead>
-                      <TableHead className="min-w-[120px]">状态</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {tasks.map((task) => (
-                      <TableRow key={task.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedTasks.includes(task.id)}
-                            onCheckedChange={() => toggleTaskSelection(task.id)}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {inlineEditingTaskId === task.id ? (
-                            <input
-                              type="text"
-                              value={inlineTaskName}
-                              onChange={(e) => setInlineTaskName(e.target.value)}
-                              onBlur={() => handleSaveInlineEdit(task.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleSaveInlineEdit(task.id);
-                                }
-                                if (e.key === 'Escape') handleCancelInlineEdit();
-                              }}
-                              className="bg-transparent border-b border-gray-400 focus:outline-none focus:border-blue-500 w-full"
-                              autoFocus
-                              title="Task Name"
-                              placeholder="Enter task name"
-                            />
-                          ) : (
-                            <span onClick={() => handleStartInlineEdit(task)} className="cursor-pointer">
-                              {task.name}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {task.assignees.length > 0 ? (
-                            <div className="flex items-center -space-x-2">
-                              <TooltipProvider>
-                                {task.assignees.map(assignee => (
-                                  <Tooltip key={assignee.id}>
-                                    <TooltipTrigger asChild>
-                                      <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium border-2 border-white transition-all duration-300 hover:scale-150 hover:mx-1 hover:z-10 cursor-pointer">
-                                        {assignee.name?.[0] || assignee.username[0].toUpperCase()}
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>{assignee.name || assignee.username}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ))}
-                              </TooltipProvider>
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">未分配</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {task.dueDate ? (
-                            <span className="text-amber-600">
-                              {new Date(task.dueDate).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">无截止日期</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={task.status} />
-                        </TableCell>
-                        <TableCell>
-                          <TaskActionsMenu
-                            task={task}
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            onTaskDeleted={handleDeleteTask}
-                            onEditClick={handleEditClick}
-                            workspaceUsers={workspaceUsers}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="p-4 border-t flex items-center justify-between text-sm text-gray-500">
-                <div>已选择 {selectedTasks.length} / {tasks.length} 个任务</div>
-                <div className="flex items-center">
-                  <Button variant="outline" size="sm" className="mr-2" disabled>
-                    上一页
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    下一页
-                  </Button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="text-center p-8">
-              <p className="text-gray-500">没有找到任务</p>
-              <p className="text-sm text-gray-400 mt-1">
-                创建一个新任务开始使用
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 看板视图 */}
-      {activeView === "kanban" && (
-        <KanbanView
-          tasks={tasks}
-          workspaceId={workspaceId}
-          projectId={projectId}
-          onTaskUpdated={fetchTasks}
-          workspaceUsers={workspaceUsers}
-        />
-      )}
-
-      {/* 日历视图 */}
-      {activeView === "calendar" && <CalendarView tasks={tasks} />}
-
-      {editingTask && (
-        <EditTaskDialog
-          task={editingTask}
-          workspaceId={workspaceId}
-          projectId={projectId}
-          onTaskUpdated={handleTaskUpdated}
-          workspaceUsers={workspaceUsers}
-        />
-      )}
-    </div>
+    </DndContext>
   );
 } 

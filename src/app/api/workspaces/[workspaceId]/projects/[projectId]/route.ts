@@ -17,7 +17,7 @@ export async function GET(
       );
     }
 
-    const { workspaceId, projectId } = params;
+    const { workspaceId, projectId } = await params;
 
     const member = await db.workspaceMember.findFirst({
       where: {

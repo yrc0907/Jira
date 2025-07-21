@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   eachDayOfInterval,
   endOfMonth,
@@ -12,6 +12,7 @@ import {
   isToday,
   addMonths,
   subMonths,
+  parseISO,
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,40 +52,126 @@ const TaskCard = ({ task }: { task: Task }) => (
 
 export function CalendarView({ tasks }: { tasks: Task[] }) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [allMonthsWithTasks, setAllMonthsWithTasks] = useState<Date[]>([]);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0);
 
-  const firstDayOfMonth = startOfMonth(currentDate);
-  const lastDayOfMonth = endOfMonth(currentDate);
+  // 找到所有包含任务的月份
+  useEffect(() => {
+    if (!tasks.length) {
+      setAllMonthsWithTasks([new Date()]);
+      return;
+    }
 
-  const daysInMonth = eachDayOfInterval({
-    start: startOfWeek(firstDayOfMonth, { weekStartsOn: 0 }), // Sunday as start of week
-    end: endOfWeek(lastDayOfMonth, { weekStartsOn: 0 }),
-  });
+    const monthsMap = new Map<string, Date>();
 
+    tasks.forEach(task => {
+      if (task.dueDate) {
+        const taskDate = new Date(task.dueDate);
+        const monthKey = format(taskDate, "yyyy-MM");
+
+        if (!monthsMap.has(monthKey)) {
+          // 创建一个当月1号的日期对象
+          const monthDate = new Date(taskDate.getFullYear(), taskDate.getMonth(), 1);
+          monthsMap.set(monthKey, monthDate);
+        }
+      }
+    });
+
+    // 按日期排序月份
+    const sortedMonths = Array.from(monthsMap.values()).sort(
+      (a, b) => a.getTime() - b.getTime()
+    );
+
+    if (sortedMonths.length === 0) {
+      sortedMonths.push(new Date());
+    }
+
+    setAllMonthsWithTasks(sortedMonths);
+
+    // 找到当前显示月份在排序后数组中的索引
+    const currentMonthStr = format(currentDate, "yyyy-MM");
+    const currentMonthIndex = sortedMonths.findIndex(
+      date => format(date, "yyyy-MM") === currentMonthStr
+    );
+
+    // 如果当前月不在列表中，选择最近的月份
+    if (currentMonthIndex >= 0) {
+      setCurrentMonthIndex(currentMonthIndex);
+      setCurrentDate(sortedMonths[currentMonthIndex]);
+    } else {
+      setCurrentMonthIndex(0);
+      setCurrentDate(sortedMonths[0]);
+    }
+  }, [tasks]);
+
+  // 修改tasksByDate的实现，确保所有任务都被添加
   const tasksByDate = tasks.reduce((acc, task) => {
     if (task.dueDate) {
       const date = format(new Date(task.dueDate), "yyyy-MM-dd");
       if (!acc[date]) {
         acc[date] = [];
       }
-      acc[date].push(task);
+      // 检查是否已存在相同的任务，避免重复
+      const taskExists = acc[date].some(existingTask => existingTask.id === task.id);
+      if (!taskExists) {
+        acc[date].push(task);
+      }
     }
     return acc;
   }, {} as Record<string, Task[]>);
 
-  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
-  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
+  const firstDayOfMonth = startOfMonth(currentDate);
+  const lastDayOfMonth = endOfMonth(currentDate);
+
+  const daysInMonth = eachDayOfInterval({
+    start: startOfWeek(firstDayOfMonth, { weekStartsOn: 0 }),
+    end: endOfWeek(lastDayOfMonth, { weekStartsOn: 0 }),
+  });
+
+  const nextMonth = () => {
+    if (currentMonthIndex < allMonthsWithTasks.length - 1) {
+      const nextIndex = currentMonthIndex + 1;
+      setCurrentMonthIndex(nextIndex);
+      setCurrentDate(allMonthsWithTasks[nextIndex]);
+    }
+  };
+
+  const prevMonth = () => {
+    if (currentMonthIndex > 0) {
+      const prevIndex = currentMonthIndex - 1;
+      setCurrentMonthIndex(prevIndex);
+      setCurrentDate(allMonthsWithTasks[prevIndex]);
+    }
+  };
 
   return (
     <div className="bg-white border rounded-lg p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">
           {format(currentDate, "MMMM yyyy")}
+          {allMonthsWithTasks.length > 1 && (
+            <span className="text-sm text-gray-500 ml-2">
+              ({currentMonthIndex + 1}/{allMonthsWithTasks.length} 个月)
+            </span>
+          )}
         </h2>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="icon" onClick={prevMonth} aria-label="Previous month">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={prevMonth}
+            disabled={currentMonthIndex <= 0}
+            aria-label="Previous month with tasks"
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={nextMonth} aria-label="Next month">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={nextMonth}
+            disabled={currentMonthIndex >= allMonthsWithTasks.length - 1}
+            aria-label="Next month with tasks"
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -97,21 +184,27 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
         ))}
         {daysInMonth.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
+          const dayTasks = tasksByDate[dateKey] || [];
           return (
             <div
               key={day.toString()}
-              className={`h-36 p-2 border-b border-r relative flex flex-col ${isSameMonth(day, currentDate) ? "" : "bg-gray-50/80 text-gray-400"
-                }`}
+              className={`h-36 p-2 border-b border-r relative flex flex-col ${isSameMonth(day, currentDate) ? "" : "bg-gray-50/80 text-gray-400"}`}
             >
-              <time
-                dateTime={format(day, "yyyy-MM-dd")}
-                className={`text-sm font-semibold self-start ${isToday(day) ? "bg-blue-600 text-white rounded-full h-6 w-6 flex items-center justify-center" : ""
-                  }`}
-              >
-                {format(day, "d")}
-              </time>
+              <div className="flex justify-between items-center">
+                <time
+                  dateTime={format(day, "yyyy-MM-dd")}
+                  className={`text-sm font-semibold ${isToday(day) ? "bg-blue-600 text-white rounded-full h-6 w-6 flex items-center justify-center" : ""}`}
+                >
+                  {format(day, "d")}
+                </time>
+                {dayTasks.length > 0 && (
+                  <span className="text-xs text-gray-500 bg-gray-100 rounded-full px-1.5 py-0.5">
+                    {dayTasks.length}
+                  </span>
+                )}
+              </div>
               <div className="mt-1 overflow-y-auto flex-grow">
-                {tasksByDate[dateKey]?.map(task => (
+                {dayTasks.map(task => (
                   <TaskCard key={task.id} task={task} />
                 ))}
               </div>

@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { DatePicker } from "./ui/date-picker";
 
 interface CreateTaskDialogProps {
   workspaceId: string;
@@ -221,7 +221,7 @@ export function CreateTaskDialog({
                 <label htmlFor="dueDate" className="text-sm font-medium">
                   截止日期
                 </label>
-                <DateTimePicker
+                <DatePicker
                   date={date}
                   setDate={setDate}
                 />
