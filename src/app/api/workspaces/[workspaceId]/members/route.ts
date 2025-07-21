@@ -22,11 +22,13 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { workspaceId } = params;
+    const { workspaceId } = await params;
 
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
-      include: { user: { select: { id: true, name: true, username: true } } }
+      include: {
+        user: { select: { id: true, name: true, username: true } },
+      }
     });
 
     if (!workspace) {
@@ -35,7 +37,16 @@ export async function GET(
 
     const membersInDb = await prisma.workspaceMember.findMany({
       where: { workspaceId },
-      include: { user: { select: { id: true, name: true, username: true } } }
+      include: {
+        user: { select: { id: true, name: true, username: true } },
+        projectPermissions: {
+          select: {
+            projectId: true,
+            canView: true,
+            canEdit: true,
+          }
+        }
+      }
     });
 
     // Check if requester is owner or a member
@@ -51,7 +62,9 @@ export async function GET(
       userId: workspace.user.id,
       name: workspace.user.name,
       username: workspace.user.username,
-      role: 'OWNER'
+      role: 'OWNER',
+      canViewProject: true,
+      canEditProject: true,
     };
 
     const memberInfo = membersInDb.map(m => ({
@@ -61,6 +74,7 @@ export async function GET(
       username: m.user.username,
       role: m.role.toUpperCase(),
       memberId: m.id,
+      projectPermissions: m.projectPermissions,
     }));
 
     const allMembers = [ownerInfo, ...memberInfo.filter(m => m.userId !== ownerInfo.userId)];

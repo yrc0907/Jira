@@ -55,6 +55,7 @@ model Project {
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tasks       Task[]    // Project can have multiple tasks
+  projectPermissions ProjectPermission[]
 }
 
 model Task {
@@ -90,6 +91,19 @@ model WorkspaceMember {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   role        String    @default("member")
+  projectPermissions ProjectPermission[]
 
   @@unique([workspaceId, userId])
+}
+
+model ProjectPermission {
+  id          String    @id @default(cuid())
+  workspaceMemberId String
+  workspaceMember   WorkspaceMember @relation(fields: [workspaceMemberId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  canView     Boolean   @default(true)
+  canEdit     Boolean   @default(false)
+
+  @@unique([workspaceMemberId, projectId])
 }
