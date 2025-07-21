@@ -40,6 +40,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { ProjectStatsCards } from "@/components/ProjectStatsCards";
 import { TaskTrendChart } from "@/components/TaskTrendChart";
+import { UserTaskChart } from "@/components/UserTaskChart";
 
 function DraggableAvatar({ user }: { user: any }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -669,9 +670,9 @@ export default function ProjectPage() {
 
         <ProjectStatsCards tasks={tasks} previousTaskCount={previousTaskCount} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <TaskTrendChart tasks={tasks} />
-          {/* You can add more summary cards or charts here */}
+          <UserTaskChart tasks={tasks} users={workspaceUsers} />
         </div>
 
         {/* 视图选择器 */}
