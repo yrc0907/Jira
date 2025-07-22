@@ -50,6 +50,25 @@ export async function PATCH(
         },
       });
 
+      const processor = await db.user.findUnique({ where: { id: session.user.id } });
+      const processorName = processor?.name || processor?.username || 'An administrator';
+
+      const updateMessage = `Request for task "${notification.changeRequest.task.name}" was ${changeRequestStatus.toLowerCase()} by ${processorName}.`;
+
+      // Update all notifications for this change request
+      await db.notification.updateMany({
+        where: {
+          changeRequestId: notification.changeRequest.id,
+          NOT: {
+            userId: notification.changeRequest.requesterId
+          }
+        },
+        data: {
+          message: updateMessage
+        }
+      });
+
+
       if (changeRequestStatus === 'APPROVED') {
         await db.task.update({
           where: { id: notification.changeRequest.taskId },
@@ -62,7 +81,7 @@ export async function PATCH(
         await db.notification.create({
           data: {
             userId: notification.changeRequest.requesterId,
-            message: `Your change request for task "${notification.changeRequest.task.name}" has been approved.`,
+            message: `Your change request for task "${notification.changeRequest.task.name}" has been approved by ${processorName}.`,
             link: `/dashboard/workspaces/${notification.changeRequest.task.project.workspaceId}/tasks`,
           }
         });
@@ -77,7 +96,7 @@ export async function PATCH(
         await db.notification.create({
           data: {
             userId: notification.changeRequest.requesterId,
-            message: `Your change request for task "${notification.changeRequest.task.name}" has been rejected.`,
+            message: `Your change request for task "${notification.changeRequest.task.name}" has been rejected by ${processorName}.`,
             link: `/dashboard/workspaces/${notification.changeRequest.task.project.workspaceId}/tasks`,
           }
         });
