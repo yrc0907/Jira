@@ -34,6 +34,13 @@ export async function GET(req: NextRequest) {
                 name: true,
                 username: true,
               }
+            },
+            processor: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+              }
             }
           }
         }

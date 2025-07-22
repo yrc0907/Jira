@@ -24,7 +24,8 @@ model User {
   workspaces    Workspace[] // User can be assigned tasks
   workspaceMemberships WorkspaceMember[]
   tasks         Task[]    // User can be assigned tasks
-  changeRequests TaskChangeRequest[]
+  changeRequests TaskChangeRequest[] @relation("Requester")
+  processedChangeRequests TaskChangeRequest[] @relation("Processor")
   notifications Notification[]
 }
 
@@ -82,7 +83,7 @@ model TaskChangeRequest {
   taskId        String
   task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   requesterId   String
-  requester     User      @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  requester     User      @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
   
   originalStatus String
   newStatus     String?
@@ -91,6 +92,9 @@ model TaskChangeRequest {
   
   status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
   
+  processorId   String?
+  processor     User?     @relation("Processor", fields: [processorId], references: [id])
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
