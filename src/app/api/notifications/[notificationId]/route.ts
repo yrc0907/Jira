@@ -44,7 +44,10 @@ export async function PATCH(
     if (changeRequestStatus && notification.changeRequest) {
       await db.taskChangeRequest.update({
         where: { id: notification.changeRequest.id },
-        data: { status: changeRequestStatus },
+        data: {
+          status: changeRequestStatus,
+          processorId: session.user.id,
+        },
       });
 
       if (changeRequestStatus === 'APPROVED') {
