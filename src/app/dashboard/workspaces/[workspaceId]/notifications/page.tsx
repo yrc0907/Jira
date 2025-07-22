@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Bell, Check, X, Trash2 } from "lucide-react";
+import { Bell, Check, X, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface Notification {
   id: string;
@@ -102,6 +103,12 @@ export default function NotificationsPage() {
     fetchUserRole();
   }, [workspaceId]);
 
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchNotifications = async () => {
     try {
       const response = await fetch("/api/notifications");
@@ -115,10 +122,6 @@ export default function NotificationsPage() {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
 
   const handleAction = async (notificationId: string, changeRequestId: string, status: 'APPROVED' | 'REJECTED') => {
     try {
@@ -278,7 +281,7 @@ export default function NotificationsPage() {
   return (
     <>
       <div className="flex h-[calc(100vh-4rem)]">
-        <div className="w-1/3 border-r overflow-y-auto">
+        <div className={cn("w-full md:w-1/3 border-r overflow-y-auto", selectedNotification ? "hidden md:block" : "block")}>
           <div className="p-4 border-b">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Inbox</h2>
@@ -286,14 +289,14 @@ export default function NotificationsPage() {
                 Mark all as read
               </Button>
             </div>
-            <div className="flex gap-2 mb-4">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <Input
                 placeholder="Search by requester..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -338,21 +341,23 @@ export default function NotificationsPage() {
                     {!n.isRead && <div className="h-2.5 w-2.5 bg-blue-500 rounded-full mr-3 mt-1.5"></div>}
                     <div className={n.isRead ? 'pl-[22px]' : ''}>
                       <div className="flex justify-between">
-                        <p className={`font-semibold ${!n.isRead ? 'text-gray-900' : 'text-gray-500'}`}>{n.changeRequest?.requester.name || n.changeRequest?.requester.username}</p>
+                        <p className={`font-semibold ${!n.isRead ? 'text-gray-900' : 'text-gray-500'}`}>{n.changeRequest?.requester.name || n.changeRequest?.requester.username || "System"}</p>
                         <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}</p>
                       </div>
                       <p className={`text-sm truncate ${!n.isRead ? 'text-gray-800' : 'text-gray-500'}`}>{n.message}</p>
-                      {n.changeRequest && (
+                      {n.changeRequest && n.changeRequest.status !== 'PENDING' && (
                         <div className="mt-2">
-                          {n.changeRequest.status === 'PENDING' && (
-                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">未处理</Badge>
-                          )}
                           {n.changeRequest.status === 'APPROVED' && (
                             <Badge>已批准</Badge>
                           )}
                           {n.changeRequest.status === 'REJECTED' && (
                             <Badge variant="destructive">已拒绝</Badge>
                           )}
+                        </div>
+                      )}
+                      {n.changeRequest && n.changeRequest.status === 'PENDING' && (
+                        <div className="mt-2">
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">未处理</Badge>
                         </div>
                       )}
                     </div>
@@ -369,23 +374,28 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        <div className="w-2/3 p-6">
+        <div className={cn("w-full md:w-2/3 p-6", selectedNotification ? "block" : "hidden md:block")}>
           {selectedNotification ? (
             <Card>
-              <CardHeader className="flex flex-row items-start justify-between">
-                <div>
-                  <CardTitle>
-                    {selectedNotification.changeRequest ? "Request Details" : "Notification"}
-                  </CardTitle>
-                  {selectedNotification.changeRequest && (
-                    <CardDescription>
-                      <span className="font-semibold">{selectedNotification.changeRequest.requester.name || selectedNotification.changeRequest.requester.username}</span> from workspace <span className="font-semibold">{selectedNotification.changeRequest.task.project.workspace.name}</span> requested changes for task <span className="font-semibold">{selectedNotification.changeRequest.task.name}</span>.
-                    </CardDescription>
-                  )}
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSelectedNotification(null)}>
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <CardTitle>
+                      {selectedNotification.changeRequest ? "Request Details" : "Notification"}
+                    </CardTitle>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => handleDeleteNotification(selectedNotification.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => handleDeleteNotification(selectedNotification.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {selectedNotification.changeRequest && (
+                  <CardDescription className="pt-2">
+                    <span className="font-semibold">{selectedNotification.changeRequest.requester.name || selectedNotification.changeRequest.requester.username}</span> from workspace <span className="font-semibold">{selectedNotification.changeRequest.task.project.workspace.name}</span> requested changes for task <span className="font-semibold">{selectedNotification.changeRequest.task.name}</span>.
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent>
                 {selectedNotification.changeRequest ? (
@@ -467,7 +477,7 @@ export default function NotificationsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="hidden md:flex items-center justify-center h-full text-muted-foreground">
               Select a notification to view details.
             </div>
           )}
