@@ -24,6 +24,8 @@ model User {
   workspaces    Workspace[] // User can be assigned tasks
   workspaceMemberships WorkspaceMember[]
   tasks         Task[]    // User can be assigned tasks
+  changeRequests TaskChangeRequest[]
+  notifications Notification[]
 }
 
 model Session {
@@ -72,6 +74,27 @@ model Task {
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   
   assignees   User[]
+  changeRequests TaskChangeRequest[]
+}
+
+model TaskChangeRequest {
+  id            String    @id @default(cuid())
+  taskId        String
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requesterId   String
+  requester     User      @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  
+  originalStatus String
+  newStatus     String?
+  newDueDate    DateTime?
+  reason        String?
+  
+  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  notifications Notification[]
 }
 
 model Invite {
@@ -81,6 +104,20 @@ model Invite {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
+}
+
+model Notification {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message             String
+  isRead              Boolean   @default(false)
+  link                String?   // Optional link to navigate to, e.g., a task URL
+  
+  changeRequestId     String?
+  changeRequest       TaskChangeRequest? @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime  @default(now())
 }
 
 model WorkspaceMember {

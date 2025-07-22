@@ -40,7 +40,11 @@ export async function createWorkspace(formData: FormData) {
       data: {
         name,
         iconUrl,
-        userId: session.user.id,
+        user: {
+          connect: {
+            id: session.user.id,
+          },
+        },
       },
     });
     revalidatePath("/dashboard");
