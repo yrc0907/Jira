@@ -20,6 +20,8 @@ interface Notification {
   link: string | null;
   changeRequestId: string | null;
   createdAt: string;
+  workspace?: { name: string };
+  project?: { name: string };
   changeRequest?: {
     status: string;
     requesterId: string;
@@ -101,6 +103,17 @@ export const Notifications = () => {
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      await fetch("/api/notifications/mark-all-as-read", { method: "POST" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      toast.success("All notifications marked as read.");
+    } catch (error) {
+      toast.error("Failed to mark all as read.");
+    }
+  };
+
   const canApprove = userRole === 'admin' || userRole === 'owner';
 
   return (
@@ -117,33 +130,78 @@ export const Notifications = () => {
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <div className="p-4">
-          <h4 className="font-medium text-sm mb-4">Notifications</h4>
-          <div className="space-y-2">
-            {notifications.map(n => (
-              <div key={n.id} className={`p-3 rounded-lg ${!n.isRead ? 'bg-blue-50' : ''}`}>
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="font-medium text-sm">Notifications</h4>
+            {unreadCount > 0 && (
+              <Button variant="link" size="sm" onClick={handleMarkAllAsRead}>
+                Mark all as read
+              </Button>
+            )}
+          </div>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`p-3 rounded-lg ${!n.isRead ? "bg-blue-50" : ""
+                  }`}
+              >
                 <p className="text-sm">{n.message}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
-                </p>
+                <div className="flex justify-between items-center mt-1">
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(n.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </p>
+                  {(n.workspace || n.project) && (
+                    <p className="text-xs text-muted-foreground font-semibold">
+                      {n.workspace?.name}{" "}
+                      {n.project ? `> ${n.project.name}` : ""}
+                    </p>
+                  )}
+                </div>
                 {n.changeRequestId && n.changeRequest && (
                   <>
-                    {canApprove && n.changeRequest.requesterId !== session?.user?.id ? (
+                    {canApprove &&
+                      n.changeRequest.requesterId !== session?.user?.id ? (
                       <div className="flex gap-2 mt-2">
-                        <Button size="sm" onClick={() => handleAction(n.id, 'APPROVED')}><Check className="h-4 w-4 mr-1" />Approve</Button>
-                        <Button size="sm" variant="outline" onClick={() => handleAction(n.id, 'REJECTED')}><X className="h-4 w-4 mr-1" />Reject</Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAction(n.id, "APPROVED")}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAction(n.id, "REJECTED")}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Reject
+                        </Button>
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground mt-1 font-semibold">Status: {n.changeRequest.status}</p>
+                      <p className="text-xs text-muted-foreground mt-1 font-semibold">
+                        Status: {n.changeRequest.status}
+                      </p>
                     )}
                   </>
                 )}
                 {!n.isRead && !n.changeRequestId && (
-                  <Button size="sm" variant="link" onClick={() => handleMarkAsRead(n.id)}>Mark as read</Button>
+                  <Button
+                    size="sm"
+                    variant="link"
+                    onClick={() => handleMarkAsRead(n.id)}
+                  >
+                    Mark as read
+                  </Button>
                 )}
               </div>
             ))}
             {notifications.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center">No new notifications.</p>
+              <p className="text-sm text-muted-foreground text-center">
+                No new notifications.
+              </p>
             )}
           </div>
         </div>

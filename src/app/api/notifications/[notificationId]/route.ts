@@ -83,7 +83,11 @@ export async function PATCH(
             userId: notification.changeRequest.requesterId,
             message: `Your change request for task "${notification.changeRequest.task.name}" has been approved by ${processorName}.`,
             link: `/dashboard/workspaces/${notification.changeRequest.task.project.workspaceId}/tasks`,
-          }
+            workspaceId: notification.changeRequest.task.project.workspaceId,
+            projectId: notification.changeRequest.task.projectId,
+            taskId: notification.changeRequest.taskId,
+            actorId: session.user.id,
+          },
         });
       } else if (changeRequestStatus === 'REJECTED') {
         await db.task.update({
@@ -98,7 +102,11 @@ export async function PATCH(
             userId: notification.changeRequest.requesterId,
             message: `Your change request for task "${notification.changeRequest.task.name}" has been rejected by ${processorName}.`,
             link: `/dashboard/workspaces/${notification.changeRequest.task.project.workspaceId}/tasks`,
-          }
+            workspaceId: notification.changeRequest.task.project.workspaceId,
+            projectId: notification.changeRequest.task.projectId,
+            taskId: notification.changeRequest.taskId,
+            actorId: session.user.id,
+          },
         });
       }
     }

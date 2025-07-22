@@ -128,7 +128,11 @@ export async function POST(
           userId: assigneeId,
           message: `You have been assigned a new task: "${task.name}" in project "${task.project.name}" by ${session.user.name || session.user.username}.`,
           link: `/dashboard/workspaces/${workspaceId}/tasks`,
-        }
+          workspaceId: workspaceId,
+          projectId: projectId,
+          taskId: task.id,
+          actorId: session.user.id,
+        },
       });
     }
 

@@ -17,6 +17,16 @@ export async function GET(req: NextRequest) {
         createdAt: 'desc',
       },
       include: {
+        workspace: true,
+        project: true,
+        task: true,
+        actor: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+          },
+        },
         changeRequest: {
           include: {
             task: {
