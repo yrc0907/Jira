@@ -10,10 +10,21 @@ import {
   Briefcase,
   User,
   Bell,
+  LogOut,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface Workspace {
   id: string;
@@ -39,6 +50,7 @@ const Sidebar = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const { data: session } = useSession();
 
   useEffect(() => {
     const fetchWorkspaces = async () => {
@@ -220,15 +232,37 @@ const Sidebar = () => {
         )}
       </div>
       <div className="p-4 border-t">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-            <User className="h-5 w-5 text-gray-500" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm">User Name</p>
-            <p className="text-xs text-gray-500">user@email.com</p>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center space-x-2 w-full hover:bg-gray-100 p-2 rounded-md">
+            <Avatar className="h-8 w-8">
+              {session?.user?.image ? (
+                <Image src={session.user.image} alt={session.user.name || ""} width={32} height={32} className="rounded-full" />
+              ) : (
+                <AvatarFallback>
+                  {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
+                </AvatarFallback>
+              )}
+            </Avatar>
+            <div className="text-left">
+              <p className="font-semibold text-sm">{session?.user?.name || "User Name"}</p>
+              <p className="text-xs text-gray-500">{session?.user?.email || "user@email.com"}</p>
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56 mb-2" align="end" forceMount>
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <Link href="/dashboard/settings">
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+            </Link>
+            <DropdownMenuItem onClick={() => signOut()}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
