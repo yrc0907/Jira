@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
-  ChevronDown,
   Plus,
   Settings,
   Users,
   Home,
   Briefcase,
   User,
+  Bell,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -26,6 +26,11 @@ interface UserWorkspaces {
   member: Workspace[];
 }
 
+interface Notification {
+  id: string;
+  isRead: boolean;
+}
+
 const Sidebar = () => {
   const pathname = usePathname();
   const [workspaces, setWorkspaces] = useState<UserWorkspaces>({
@@ -33,6 +38,7 @@ const Sidebar = () => {
     member: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     const fetchWorkspaces = async () => {
@@ -49,14 +55,29 @@ const Sidebar = () => {
         setIsLoading(false);
       }
     };
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch("/api/notifications");
+        if (response.ok) {
+          const data: Notification[] = await response.json();
+          setUnreadNotifications(data.filter(n => !n.isRead).length);
+        }
+      } catch (error) {
+        console.error("Failed to fetch notifications:", error);
+      }
+    };
     fetchWorkspaces();
+    fetchNotifications();
+
+    const interval = setInterval(fetchNotifications, 10000); // Poll for notifications
+    return () => clearInterval(interval);
   }, []);
 
   const workspaceId = pathname.split("/")[3];
 
   return (
     <div className="h-full w-64 fixed flex flex-col border-r bg-white">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-blue-500 rounded-md"></div>
           <span className="font-semibold text-lg">Logoipsum</span>
@@ -181,6 +202,19 @@ const Sidebar = () => {
             >
               <Settings className="h-4 w-4" />
               <span>Settings</span>
+            </Link>
+            <Link
+              href={`/dashboard/workspaces/${workspaceId}/notifications`}
+              className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${pathname.includes("/notifications") ? "bg-gray-100 font-semibold" : ""
+                }`}
+            >
+              <Bell className="h-4 w-4" />
+              <span>Notifications</span>
+              {unreadNotifications > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadNotifications}
+                </span>
+              )}
             </Link>
           </div>
         )}
