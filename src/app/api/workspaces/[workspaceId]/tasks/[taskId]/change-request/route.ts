@@ -53,13 +53,19 @@ export async function POST(
       .filter(id => id !== userId) as string[];
 
     if (userIdsToNotify.length > 0) {
-      const message = `User ${session.user.name || session.user.username} requested a change for task "${task.name}" in project "${task.project.name}"`;
+      const message = `User ${session.user.name || session.user.username
+        } requested a change for task "${task.name}" in project "${task.project.name
+        }"`;
       await db.notification.createMany({
-        data: userIdsToNotify.map(id => ({
+        data: userIdsToNotify.map((id) => ({
           userId: id,
           message: message,
-          link: `/dashboard/workspaces/${workspaceId}/projects/${task.projectId}`,
+          link: `/dashboard/workspaces/${workspaceId}/notifications`,
           changeRequestId: changeRequest.id,
+          workspaceId: workspaceId,
+          projectId: task.projectId,
+          taskId: task.id,
+          actorId: session.user.id,
         })),
       });
     }

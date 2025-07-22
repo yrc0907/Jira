@@ -42,6 +42,12 @@ interface Notification {
   isRead: boolean;
 }
 
+interface NotificationCounts {
+  workspaces: { [key: string]: number };
+  projects: { [key: string]: { [key: string]: number } };
+  total: number;
+}
+
 const Sidebar = () => {
   const pathname = usePathname();
   const [workspaces, setWorkspaces] = useState<UserWorkspaces>({
@@ -49,7 +55,11 @@ const Sidebar = () => {
     member: [],
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationCounts, setNotificationCounts] = useState<NotificationCounts>({
+    workspaces: {},
+    projects: {},
+    total: 0,
+  });
   const { data: session } = useSession();
 
   useEffect(() => {
@@ -67,21 +77,21 @@ const Sidebar = () => {
         setIsLoading(false);
       }
     };
-    const fetchNotifications = async () => {
+    const fetchNotificationCounts = async () => {
       try {
-        const response = await fetch("/api/notifications");
+        const response = await fetch("/api/notifications/counts");
         if (response.ok) {
-          const data: Notification[] = await response.json();
-          setUnreadNotifications(data.filter(n => !n.isRead).length);
+          const data: NotificationCounts = await response.json();
+          setNotificationCounts(data);
         }
       } catch (error) {
-        console.error("Failed to fetch notifications:", error);
+        console.error("Failed to fetch notification counts:", error);
       }
     };
     fetchWorkspaces();
-    fetchNotifications();
+    fetchNotificationCounts();
 
-    const interval = setInterval(fetchNotifications, 10000); // Poll for notifications
+    const interval = setInterval(fetchNotificationCounts, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -96,6 +106,28 @@ const Sidebar = () => {
         </div>
       </div>
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase">
+              Navigation
+            </h2>
+          </div>
+          <Link
+            href={`/dashboard/notifications`}
+            className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${pathname === "/dashboard/notifications"
+              ? "bg-gray-100 font-semibold"
+              : ""
+              }`}
+          >
+            <Bell className="h-4 w-4" />
+            <span>All Notifications</span>
+            {notificationCounts.total > 0 && (
+              <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {notificationCounts.total}
+              </span>
+            )}
+          </Link>
+        </div>
         <div>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-gray-500 uppercase">
@@ -118,7 +150,7 @@ const Sidebar = () => {
                 <Link
                   key={ws.id}
                   href={`/dashboard/workspaces/${ws.id}`}
-                  className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${workspaceId === ws.id ? "bg-gray-100 font-semibold" : ""
+                  className={`relative flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${workspaceId === ws.id ? "bg-gray-100 font-semibold" : ""
                     }`}
                 >
                   {ws.iconUrl ? (
@@ -135,6 +167,9 @@ const Sidebar = () => {
                     </div>
                   )}
                   <span>{ws.name}</span>
+                  {notificationCounts.workspaces[ws.id] > 0 && (
+                    <div className="absolute right-2 h-2 w-2 bg-red-500 rounded-full" />
+                  )}
                 </Link>
               ))}
               {workspaces.owned.length === 0 && (
@@ -158,7 +193,7 @@ const Sidebar = () => {
                 <Link
                   key={ws.id}
                   href={`/dashboard/workspaces/${ws.id}`}
-                  className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${workspaceId === ws.id ? "bg-gray-100 font-semibold" : ""
+                  className={`relative flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${workspaceId === ws.id ? "bg-gray-100 font-semibold" : ""
                     }`}
                 >
                   {ws.iconUrl ? (
@@ -175,6 +210,9 @@ const Sidebar = () => {
                     </div>
                   )}
                   <span>{ws.name}</span>
+                  {notificationCounts.workspaces[ws.id] > 0 && (
+                    <div className="absolute right-2 h-2 w-2 bg-red-500 rounded-full" />
+                  )}
                 </Link>
               ))
             )}
@@ -185,7 +223,9 @@ const Sidebar = () => {
           <div className="border-t pt-4 mt-4">
             <Link
               href={`/dashboard/workspaces/${workspaceId}`}
-              className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${pathname.endsWith(`/workspaces/${workspaceId}`) ? "bg-gray-100 font-semibold" : ""
+              className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${pathname.endsWith(`/workspaces/${workspaceId}`)
+                ? "bg-gray-100 font-semibold"
+                : ""
                 }`}
             >
               <Home className="h-4 w-4" />
@@ -198,6 +238,21 @@ const Sidebar = () => {
             >
               <Briefcase className="h-4 w-4" />
               <span>My Tasks</span>
+            </Link>
+            <Link
+              href={`/dashboard/notifications`}
+              className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${pathname.includes(`/notifications`)
+                  ? "bg-gray-100 font-semibold"
+                  : ""
+                }`}
+            >
+              <Bell className="h-4 w-4" />
+              <span>Notifications</span>
+              {notificationCounts.workspaces[workspaceId] > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {notificationCounts.workspaces[workspaceId]}
+                </span>
+              )}
             </Link>
             <Link
               href={`/dashboard/workspaces/${workspaceId}/members`}
@@ -214,19 +269,6 @@ const Sidebar = () => {
             >
               <Settings className="h-4 w-4" />
               <span>Settings</span>
-            </Link>
-            <Link
-              href={`/dashboard/workspaces/${workspaceId}/notifications`}
-              className={`flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 ${pathname.includes("/notifications") ? "bg-gray-100 font-semibold" : ""
-                }`}
-            >
-              <Bell className="h-4 w-4" />
-              <span>Notifications</span>
-              {unreadNotifications > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {unreadNotifications}
-                </span>
-              )}
             </Link>
           </div>
         )}

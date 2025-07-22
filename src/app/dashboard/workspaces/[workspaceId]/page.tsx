@@ -22,6 +22,12 @@ interface Project {
   updatedAt: string;
 }
 
+interface NotificationCounts {
+  workspaces: { [key: string]: number };
+  projects: { [key: string]: { [key: string]: number } };
+  total: number;
+}
+
 export default function WorkspacePage() {
   const params = useParams();
   const router = useRouter();
@@ -33,6 +39,11 @@ export default function WorkspacePage() {
   const [newProjectName, setNewProjectName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [notificationCounts, setNotificationCounts] = useState<NotificationCounts>({
+    workspaces: {},
+    projects: {},
+    total: 0,
+  });
 
   useEffect(() => {
     const fetchWorkspace = async () => {
@@ -69,9 +80,24 @@ export default function WorkspacePage() {
       }
     };
 
+    const fetchNotificationCounts = async () => {
+      try {
+        const response = await fetch('/api/notifications/counts');
+        if (response.ok) {
+          const data = await response.json();
+          setNotificationCounts(data);
+        }
+      } catch (error) {
+        console.error("Error fetching notification counts:", error);
+      }
+    };
+
     if (workspaceId) {
       fetchWorkspace();
       fetchProjects();
+      fetchNotificationCounts();
+      const interval = setInterval(fetchNotificationCounts, 10000); // Poll every 10 seconds
+      return () => clearInterval(interval);
     }
   }, [workspaceId, router]);
 
@@ -163,21 +189,27 @@ export default function WorkspacePage() {
         )}
 
         {projects.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {projects.map((project) => (
               <Link
                 href={`/dashboard/workspaces/${workspaceId}/projects/${project.id}`}
                 key={project.id}
               >
-                <Card className="hover:border-blue-400 transition-colors cursor-pointer">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                <Card className="hover:shadow-md transition-shadow relative">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {project.name}
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-xs text-gray-500">
-                      Created: {new Date(project.createdAt).toLocaleDateString()}
+                  <CardContent>
+                    <div className="text-2xl font-bold">View</div>
+                    <p className="text-xs text-muted-foreground">
+                      Click to see project details
                     </p>
                   </CardContent>
+                  {notificationCounts.projects[workspaceId]?.[project.id] > 0 && (
+                    <div className="absolute top-3 right-3 h-2 w-2 bg-red-500 rounded-full" />
+                  )}
                 </Card>
               </Link>
             ))}
