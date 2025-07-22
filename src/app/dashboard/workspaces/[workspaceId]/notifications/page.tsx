@@ -196,6 +196,19 @@ export default function NotificationsPage() {
                     <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}</p>
                   </div>
                   <p className={`text-sm truncate ${!n.isRead ? 'text-gray-800' : 'text-gray-500'}`}>{n.message}</p>
+                  {n.changeRequest && (
+                    <div className="mt-2">
+                      {n.changeRequest.status === 'PENDING' && (
+                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">未处理</Badge>
+                      )}
+                      {n.changeRequest.status === 'APPROVED' && (
+                        <Badge>已批准</Badge>
+                      )}
+                      {n.changeRequest.status === 'REJECTED' && (
+                        <Badge variant="destructive">已拒绝</Badge>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
