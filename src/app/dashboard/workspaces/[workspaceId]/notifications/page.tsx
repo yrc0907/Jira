@@ -348,7 +348,7 @@ export default function NotificationsPage() {
                       {n.changeRequest && n.changeRequest.status !== 'PENDING' && (
                         <div className="mt-2">
                           {n.changeRequest.status === 'APPROVED' && (
-                            <Badge>已批准</Badge>
+                            <Badge className="bg-green-600 hover:bg-green-700 text-primary-foreground">已批准</Badge>
                           )}
                           {n.changeRequest.status === 'REJECTED' && (
                             <Badge variant="destructive">已拒绝</Badge>
@@ -459,7 +459,10 @@ export default function NotificationsPage() {
                       ) : (
                         <div>
                           <h4 className="font-semibold">Status:</h4>
-                          <Badge variant={selectedNotification.changeRequest.status === 'APPROVED' ? 'default' : 'destructive'}>
+                          <Badge
+                            variant={selectedNotification.changeRequest.status === 'APPROVED' ? 'default' : 'destructive'}
+                            className={selectedNotification.changeRequest.status === 'APPROVED' ? 'bg-green-600 hover:bg-green-700' : ''}
+                          >
                             {selectedNotification.changeRequest.status}
                           </Badge>
                           {selectedNotification.changeRequest.processor && (
