@@ -16,10 +16,12 @@ import { toast } from "sonner";
 import { differenceInDays, format } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { RequestChangeDialog } from "@/components/RequestChangeDialog";
+import { TaskDetailsDialog } from "@/components/TaskDetailsDialog";
 
 interface Task {
   id: string;
   name: string;
+  description: string | null;
   status: string;
   dueDate: string | null;
   project: {
@@ -45,6 +47,8 @@ export default function MyTasksPage() {
   const workspaceId = params.workspaceId as string;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const handleRequestSubmitted = (taskId: string) => {
     setTasks(prevTasks =>
@@ -97,6 +101,11 @@ export default function MyTasksPage() {
     return () => clearInterval(interval);
   }, [workspaceId, tasks]);
 
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setIsDetailsOpen(true);
+  };
+
   const DueDate = ({ dueDate }: { dueDate: string | null }) => {
     if (!dueDate) return <span className="text-muted-foreground">-</span>;
     const days = differenceInDays(new Date(dueDate), new Date());
@@ -115,9 +124,9 @@ export default function MyTasksPage() {
   }
 
   return (
-    <div>
+    <div className="p-8">
       <h1 className="text-2xl font-bold mb-6">My Tasks</h1>
-      <div className="border rounded-lg">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -131,7 +140,7 @@ export default function MyTasksPage() {
           </TableHeader>
           <TableBody>
             {tasks.map(task => (
-              <TableRow key={task.id}>
+              <TableRow key={task.id} onClick={() => handleTaskClick(task)} className="cursor-pointer">
                 <TableCell className="font-medium">{task.name}</TableCell>
                 <TableCell>{task.project.name}</TableCell>
                 <TableCell>
@@ -176,6 +185,11 @@ export default function MyTasksPage() {
           </TableBody>
         </Table>
       </div>
+      <TaskDetailsDialog
+        task={selectedTask}
+        isOpen={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }

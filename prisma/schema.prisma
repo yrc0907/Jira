@@ -17,6 +17,11 @@ model User {
   id            String    @id @default(cuid())
   name          String?
   username      String    @unique
+  email         String?   @unique
+  image         String?
+  phone         String?
+  company       String?
+  department    String?
   password      String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

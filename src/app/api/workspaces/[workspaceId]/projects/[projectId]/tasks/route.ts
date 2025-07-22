@@ -99,13 +99,11 @@ export async function POST(
     const { workspaceId, projectId } = params;
     const body = await request.json();
 
-    const { name, description, status, dueDate, assigneeIds } = body;
+    const { name, description, status, dueDate, assigneeId } = body;
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
-
-    // Further validation can be added here
 
     const task = await db.task.create({
       data: {
@@ -115,13 +113,24 @@ export async function POST(
         dueDate: dueDate ? new Date(dueDate) : null,
         projectId: projectId,
         assignees: {
-          connect: assigneeIds?.map((id: string) => ({ id })) || []
+          connect: assigneeId ? [{ id: assigneeId }] : [],
         },
       },
       include: {
         assignees: true,
+        project: true,
       },
     });
+
+    if (assigneeId) {
+      await db.notification.create({
+        data: {
+          userId: assigneeId,
+          message: `You have been assigned a new task: "${task.name}" in project "${task.project.name}" by ${session.user.name || session.user.username}.`,
+          link: `/dashboard/workspaces/${workspaceId}/tasks`,
+        }
+      });
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
